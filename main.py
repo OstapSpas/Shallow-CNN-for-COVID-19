@@ -17,43 +17,54 @@ class ShallowCNN(nn.Module):
     def __init__(self):
         super(ShallowCNN, self).__init__()
 
-        # Згортковий шар: 10 фільтрів, ядро 2x2, активація ReLU
+        # Один згортковий шар (згідно зі статтею)
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=10, kernel_size=2)
 
-        # Пулінг-шар: 2x2
+        # Пулінг (згідно зі статтею)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
 
-        # Визначимо вихідний розмір після згортки (автоматично)
+        # Автоматичне визначення розміру для FC-шару
         self.flatten_size = self._get_flatten_size()
 
-        # Повнозв’язний шар: 256 нейронів
+        # Повнозв’язні шари (згідно зі статтею)
         self.fc1 = nn.Linear(self.flatten_size, 256)
-
-        # Вихідний шар: 3 класи (COVID, NORMAL, PNEUMONIA)
         self.fc2 = nn.Linear(256, 3)
 
     def _get_flatten_size(self):
-        """Функція для автоматичного визначення розміру входу в fc1"""
-        x = torch.randn(1, 3, 224, 224)  # Створюємо тестове зображення 224x224
-        x = self.pool(F.relu(self.conv1(x)))  # Пропускаємо через Conv+Pool
-        return x.view(-1).shape[0]  # Повертаємо кількість вихідних нейронів
+        """Визначає розмір тензора після згортки"""
+        x = torch.randn(1, 3, 224, 224)  # Тестове зображення
+        x = self.pool(F.relu(self.conv1(x)))
+        return x.view(-1).shape[0]
 
     def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))  # Conv -> ReLU -> Pool
-        x = torch.flatten(x, start_dim=1)  # Автоматичне перетворення у вектор
-        x = F.relu(self.fc1(x))  # Повнозв’язний шар з ReLU
-        x = F.log_softmax(self.fc2(x), dim=1)  # Вихідний шар Softmax
+        x = self.pool(F.relu(self.conv1(x)))
+        x = torch.flatten(x, start_dim=1)
+        x = F.relu(self.fc1(x))
+        x = F.log_softmax(self.fc2(x), dim=1)
         return x
+
+# Ініціалізація моделі
+model = ShallowCNN()
 
 # Перевіримо модель
 model = ShallowCNN()
 print(model)
 
 # Функція втрат
-criterion = nn.CrossEntropyLoss()
+# Визначаємо, чи є GPU
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Отримуємо баланс класів
+class_counts = torch.tensor([57, 234, 390], dtype=torch.float32)  # Кількість випадків COVID, NORMAL, PNEUMONIA
+weights = class_counts.sum() / class_counts  # Ваги у зворотному порядку
+weights = weights / weights.sum()  # Нормалізуємо ваги
+weights = weights.to(device)
+
+# Оновлена функція втрат
+criterion = nn.CrossEntropyLoss(weight=weights)
 
 # Оптимізатор (SGD)
-optimizer = optim.SGD(model.parameters(), lr=0.005, momentum=0.9)
+optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Перевіримо, що все ініціалізувалося без помилок
 print(optimizer)
@@ -63,15 +74,16 @@ dataset_base = "chest_xray"
 
 # Трансформації для зображень (зміна розміру, перетворення в тензор, нормалізація)
 transform = transforms.Compose([
-    transforms.Resize((224, 224)),  # Зміна розміру зображень
-    transforms.ToTensor(),  # Перетворення в тензор
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Нормалізація
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
 
 # Завантаження даних
 train_dataset = datasets.ImageFolder(root=f"{dataset_base}/train", transform=transform)
 val_dataset = datasets.ImageFolder(root=f"{dataset_base}/val", transform=transform)
 test_dataset = datasets.ImageFolder(root=f"{dataset_base}/test", transform=transform)
+
 
 # DataLoader для пакетного завантаження
 train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
@@ -86,7 +98,7 @@ print(f"Train: {len(train_dataset)}, Val: {len(val_dataset)}, Test: {len(test_da
 
 
 # Навчальні параметри
-num_epochs = 5  # Можна змінити на більше, якщо потрібно
+num_epochs = 10 # Можна змінити на більше, якщо потрібно
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Використовуємо GPU, якщо є
 model.to(device)
 
@@ -141,10 +153,6 @@ for epoch in range(num_epochs):
 
 print("Навчання завершено!")
 
-from sklearn.metrics import classification_report, confusion_matrix
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 # Тестування моделі
 model.eval()  # Переключаємо модель в режим оцінки
