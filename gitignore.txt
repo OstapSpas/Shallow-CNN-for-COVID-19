@@ -1,0 +1,41 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# === Важкі моделі та білди ===
+*.pth
+*.pt
+*.ckpt
+*.onnx
+*.whl
+*.zip
+
+# === Virtual envs ===
+env/
+venv/
+.venv/
+
+# === IDEs / editors ===
+.vscode/
+.idea/
+*.swp
+
+# === System ===
+.DS_Store
+Thumbs.db
+
+# === Results / uploads ===
+app/static/uploads/
+app/static/results/
+
+# === Logs / temporary ===
+*.log
+*.tmp
+
+# === Node/npm (якщо буде) ===
+node_modules/
